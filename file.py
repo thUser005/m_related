@@ -1,11 +1,10 @@
 
-import requests,json
-import m3u8
+import requests,json,subprocess
+import m3u8,zipfile,os,re
 from Crypto.Cipher import AES
 from tqdm import tqdm
-import os
 from concurrent.futures import ThreadPoolExecutor
-import zipfile
+from IPython.display import clear_output
 
 
 # Headers to bypass protection
@@ -26,6 +25,52 @@ headers = {
 def unzip_file(zip_path, extract_to):
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         zip_ref.extractall(extract_to)
+
+
+def merge_videos_with_ffmpeg(output_videos_folder, final_output_file):
+    """
+    Merges all videos named file_{num}.mp4 from a folder into a single video file using FFmpeg.
+
+    Args:
+        output_videos_folder (str): Path to the folder containing video segments.
+        final_output_file (str): Name of the final output video (e.g., 'final_video.mp4').
+    """
+    print(f"📂 Looking for video parts in: {output_videos_folder}")
+    
+    # Step 1: Collect and sort video files by number
+    video_files = [
+        f for f in os.listdir(output_videos_folder)
+        if re.match(r'file_(\d+)\.mp4$', f)
+    ]
+
+    if not video_files:
+        print("⚠️ No video files found to merge.")
+        return
+
+    # Sort files by extracted number
+    video_files.sort(key=lambda x: int(re.search(r'file_(\d+)\.mp4$', x).group(1)))
+    
+    print(f"📑 Sorted video files: {video_files}")
+
+    # Step 2: Create FFmpeg file list
+    list_file_path = os.path.join(output_videos_folder, 'videos_to_merge.txt')
+    with open(list_file_path, 'w') as list_file:
+        for vf in video_files:
+            list_file.write(f"file '{os.path.join(output_videos_folder, vf)}'\n")
+
+    # Step 3: Run FFmpeg command
+    print("🛠️ Merging videos using FFmpeg...")
+    cmd = [
+        'ffmpeg',
+        '-f', 'concat',
+        '-safe', '0',
+        '-i', list_file_path,
+        '-c', 'copy',
+        final_output_file
+    ]
+    subprocess.run(cmd, check=True)
+    print(f"✅ Merge complete. Output saved as: {final_output_file}")
+
 
 def download_decrypt_merge(title, m3u8_file='video.m3u8'):
     """
@@ -170,5 +215,12 @@ if data:
             download_decrypt_merge(output_video_file)
         else:
             print(f"❌ Failed to download M3U8 for episode {video_num}")
+
+    if len(output_videos_folder)>0:
+        print("videos merged started..")
+        clear_output(wait=True)
+        final_video = f"{json_file.split(".")[0]}.mp4"
+        merge_videos_with_ffmpeg(output_videos_folder,final_video)
+        
 else:
     print("🚫 No JSON data to process.")
