@@ -54,7 +54,7 @@ def download_decrypt_merge(title, m3u8_file='video.m3u8'):
         return decrypted_data
 
     print("⏳ Downloading and decrypting segments...")
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    with ThreadPoolExecutor(max_workers=50) as executor:
         decrypted_segments = list(tqdm(executor.map(download_and_decrypt, playlist.segments), total=len(playlist.segments)))
 
     # Step 4: Merge all decrypted segments into one file
@@ -64,7 +64,7 @@ def download_decrypt_merge(title, m3u8_file='video.m3u8'):
             final_file.write(segment)
 
     # Step 5: Rename the final file to .mp4
-    mp4_file = f"{title}.mp4"
+    mp4_file = f"{title}"
     os.rename(ts_file, mp4_file)
 
     # Step 6: Cleanup if output file exists
@@ -128,7 +128,7 @@ os.makedirs(output_videos_folder,exist_ok=True)
 
 # List files inside json_files folder
 json_files_lst = os.listdir(json_folder_name)
-print(f"📁 JSON files found: {json_files_lst}")
+print(f"📁 JSON files found: {len(json_files_lst)}")
 
 file_num = 0
 data = None
@@ -147,6 +147,7 @@ if len(json_files_lst) > 0:
 # Process each video entry
 if data:
     for index, video_data in enumerate(data):
+        print(30*"--")
         print(f"\n🔄 Processing {index + 1}/{len(data)}")
 
         video_num = video_data.get('episode')
@@ -164,7 +165,7 @@ if data:
         video_flag = download_m3u8(url)
 
         if video_flag:
-            output_video_file = f"./{output_videos_folder}file_{video_num}.mp4"
+            output_video_file = f"./{output_videos_folder}/file_{video_num}.mp4"
             print(f"⬇️ Downloading and decrypting video as '{output_video_file}'...")
             download_decrypt_merge(output_video_file)
         else:
