@@ -219,7 +219,7 @@ if data:
     if len(output_videos_folder)>0:
         print("videos merged started..")
         clear_output(wait=True)
-        final_video = f"{json_file.split(".")[0]}.mp4"
+        final_video = f"{json_file.split('.')[0]}.mp4"
         merge_videos_with_ffmpeg(output_videos_folder,final_video)
         
 else:
