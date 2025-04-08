@@ -56,19 +56,15 @@ def merge_videos_with_ffmpeg(output_videos_folder, final_output_file):
     list_file_path = os.path.join(output_videos_folder, 'videos_to_merge.txt')
     with open(list_file_path, 'w') as list_file:
         for vf in video_files:
-            list_file.write(f"file '{os.path.join(output_videos_folder, vf)}'\n")
+            list_file.write(f"file '{vf}'\n")  # Just the filename, not path like video_files/file_1.mp4
 
     # Step 3: Run FFmpeg command
     print("🛠️ Merging videos using FFmpeg...")
-    cmd = [
-        'ffmpeg',
-        '-f', 'concat',
-        '-safe', '0',
-        '-i', list_file_path,
-        '-c', 'copy',
-        final_output_file
-    ]
-    subprocess.run(cmd, check=True)
+    cmd =[
+    "ffmpeg", "-f", "concat", "-safe", "0", "-i", "videos_to_merge.txt",
+    "-c", "copy", f"../{final_video}"
+]
+    subprocess.run(cmd, check=True, cwd="video_files")
     print(f"✅ Merge complete. Output saved as: {final_output_file}")
 
 
