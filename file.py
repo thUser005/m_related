@@ -1,5 +1,5 @@
 
-import requests,json,subprocess
+import requests,json,subprocess,shutil
 import m3u8,zipfile,os,re
 from Crypto.Cipher import AES
 from tqdm import tqdm
@@ -217,10 +217,13 @@ def main(json_start,json_end):
 
                 if len(output_videos_folder)>0:
                     print("videos merged started..")
-                    clear_output(wait=True)
                     final_video = f"{json_file.split('.')[0]}.mp4"
                     merge_videos_with_ffmpeg(output_videos_folder,final_video)
+                    clear_output(wait=True)
+                    print("Removing videos folder..")
+                    shutil.rmtree(output_videos_folder)
                     
             else:
                 
                 print("🚫 No JSON data to process.")
+            
