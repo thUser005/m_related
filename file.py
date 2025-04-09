@@ -172,8 +172,8 @@ os.makedirs(output_videos_folder,exist_ok=True)
 json_files_lst = os.listdir(json_folder_name)
 print(f"📁 JSON files found: {len(json_files_lst)}")
 
-json_start = 0
-json_end = 3
+json_start = int(input("enter json start value : "))
+json_end = int(input("\nenter json end value : "))
 
 data = None
 
