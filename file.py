@@ -154,73 +154,73 @@ def download_m3u8(url, filename="video.m3u8"):
     except Exception as e:
         print(f"❌ Failed to download m3u8 file: {e}")
 
-# List all files in current directory
-all_files = os.listdir()
-json_folder_name = 'json_files'
 
-# Unzip if necessary
-if json_folder_name not in all_files and 'json_zipped.zip' in all_files:
-    print("📦 'json_files' folder not found. Unzipping 'json_zipped.zip'...")
-    unzip_file("json_zipped.zip", json_folder_name)
-    print("✅ Unzipping completed.")
-
-output_videos_folder = "video_files"
-
-os.makedirs(output_videos_folder,exist_ok=True)
-
-# List files inside json_files folder
-json_files_lst = os.listdir(json_folder_name)
-print(f"📁 JSON files found: {len(json_files_lst)}")
-
-json_start = int(input("enter json start value : "))
-json_end = int(input("\nenter json end value : "))
-
-data = None
-
-# Check if JSON files exist
-if len(json_files_lst) > 0:
-    for json_file in json_files_lst[json_start:json_end]:
-            
-        json_file_path = f"./{json_folder_name}/{json_file}"
-        print(f"📄 Loading JSON data from: {json_file_path}")
+def main(json_start,json_end):
         
-        with open(json_file_path, encoding='utf-8') as f:
-            data = json.load(f)
-            print(f"✅ Loaded {len(data)} entries from {json_file}")
+    # List all files in current directory
+    all_files = os.listdir()
+    json_folder_name = 'json_files'
 
-        # Process each video entry
-        if data:
-            for index, video_data in enumerate(data):
-                print(30*"--")
-                print(f"\n🔄 Processing {index + 1}/{len(data)}")
+    # Unzip if necessary
+    if json_folder_name not in all_files and 'json_zipped.zip' in all_files:
+        print("📦 'json_files' folder not found. Unzipping 'json_zipped.zip'...")
+        unzip_file("json_zipped.zip", json_folder_name)
+        print("✅ Unzipping completed.")
 
-                video_num = video_data.get('episode')
-                url = video_data.get('video_url')
+    output_videos_folder = "video_files"
+
+    os.makedirs(output_videos_folder,exist_ok=True)
+
+    # List files inside json_files folder
+    json_files_lst = os.listdir(json_folder_name)
+    print(f"📁 JSON files found: {len(json_files_lst)}")
+
+    data = None
+
+    # Check if JSON files exist
+    if len(json_files_lst) > 0:
+        for json_file in json_files_lst[json_start:json_end]:
                 
-                if not url:
-                    print(f"⚠️ Skipping episode {video_num}: No video URL provided.")
-                    continue
-                
-                if "m3u8/?url" not in url:
-                    print(f"⚠️ Skipping episode {video_num}: URL format not supported.")
-                    continue
-
-                print(f"🌐 Downloading M3U8 from: {url}")
-                video_flag = download_m3u8(url)
-
-                if video_flag:
-                    output_video_file = f"./{output_videos_folder}/file_{video_num}.mp4"
-                    print(f"⬇️ Downloading and decrypting video as '{output_video_file}'...")
-                    download_decrypt_merge(output_video_file)
-                else:
-                    print(f"❌ Failed to download M3U8 for episode {video_num}")
-
-            if len(output_videos_folder)>0:
-                print("videos merged started..")
-                clear_output(wait=True)
-                final_video = f"{json_file.split('.')[0]}.mp4"
-                merge_videos_with_ffmpeg(output_videos_folder,final_video)
-                
-        else:
+            json_file_path = f"./{json_folder_name}/{json_file}"
+            print(f"📄 Loading JSON data from: {json_file_path}")
             
-            print("🚫 No JSON data to process.")
+            with open(json_file_path, encoding='utf-8') as f:
+                data = json.load(f)
+                print(f"✅ Loaded {len(data)} entries from {json_file}")
+
+            # Process each video entry
+            if data:
+                for index, video_data in enumerate(data):
+                    print(30*"--")
+                    print(f"\n🔄 Processing {index + 1}/{len(data)}")
+
+                    video_num = video_data.get('episode')
+                    url = video_data.get('video_url')
+                    
+                    if not url:
+                        print(f"⚠️ Skipping episode {video_num}: No video URL provided.")
+                        continue
+                    
+                    if "m3u8/?url" not in url:
+                        print(f"⚠️ Skipping episode {video_num}: URL format not supported.")
+                        continue
+
+                    print(f"🌐 Downloading M3U8 from: {url}")
+                    video_flag = download_m3u8(url)
+
+                    if video_flag:
+                        output_video_file = f"./{output_videos_folder}/file_{video_num}.mp4"
+                        print(f"⬇️ Downloading and decrypting video as '{output_video_file}'...")
+                        download_decrypt_merge(output_video_file)
+                    else:
+                        print(f"❌ Failed to download M3U8 for episode {video_num}")
+
+                if len(output_videos_folder)>0:
+                    print("videos merged started..")
+                    clear_output(wait=True)
+                    final_video = f"{json_file.split('.')[0]}.mp4"
+                    merge_videos_with_ffmpeg(output_videos_folder,final_video)
+                    
+            else:
+                
+                print("🚫 No JSON data to process.")
