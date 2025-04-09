@@ -62,7 +62,7 @@ def merge_videos_with_ffmpeg(output_videos_folder, final_output_file):
     print("🛠️ Merging videos using FFmpeg...")
     cmd =[
     "ffmpeg", "-f", "concat", "-safe", "0", "-i", "videos_to_merge.txt",
-    "-c", "copy", f"/content/output_folder/{final_video}"
+    "-c", "copy", f"/content/output_folder/{final_output_file}"
 ]
     subprocess.run(cmd, check=True, cwd="video_files")
     
