@@ -54,7 +54,7 @@ def merge_videos_with_ffmpeg(output_videos_folder, final_output_file, max_per_me
 
     # Sort files numerically
     video_files.sort(key=lambda x: int(re.search(r'file_(\d+)\.mp4$', x).group(1)))
-    print(f"📑 Sorted video files: {video_files}")
+    print(f"📑 Sorted video files: {len(video_files)}")
 
     # Step 2: Split files into chunks of `max_per_merge`
     num_parts = math.ceil(len(video_files) / max_per_merge)
@@ -119,6 +119,10 @@ def download_decrypt_merge(title, m3u8_file='video.m3u8'):
         if not decrypted_segments:
             print("❌ No segments downloaded. Skipping file.")
             return False
+        
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(title), exist_ok=True)
+
 
         # Step 4: Merge all decrypted segments into one file
         ts_file = f"{title}.ts"
