@@ -1,11 +1,25 @@
 
 import requests,json,subprocess,shutil
-import m3u8,zipfile,os,re
+import m3u8,zipfile,os,re,time
 from Crypto.Cipher import AES
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor
 from IPython.display import clear_output
 from requests.exceptions import SSLError, ConnectionError
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+# Setup session with retries
+session = requests.Session()
+retries = Retry(
+    total=5,
+    backoff_factor=1,
+    status_forcelist=[500, 502, 503, 504],
+    allowed_methods=["GET"]
+)
+adapter = HTTPAdapter(max_retries=retries)
+session.mount("http://", adapter)
+session.mount("https://", adapter)
 
 
 # Headers to bypass protection
@@ -70,7 +84,64 @@ def merge_videos_with_ffmpeg(output_videos_folder, final_output_file):
     print(f"✅ Merge complete. Output saved as: {final_output_file}")
 
 
+
 def download_decrypt_merge(title, m3u8_file='video.m3u8'):
+    """
+    Downloads and decrypts .ts video segments from an M3U8 playlist and merges them into a single MP4 file.
+    """
+    print(f"📥 Processing M3U8: {m3u8_file}")
+
+    try:
+        playlist = m3u8.load(m3u8_file)
+        key_uri = playlist.keys[0].uri
+        key = session.get(key_uri, headers=headers, timeout=10).content
+
+        def download_and_decrypt(segment, retries=3):
+            for attempt in range(retries):
+                try:
+                    segment_url = segment.uri
+                    resp = session.get(segment_url, headers=headers, timeout=10, stream=True)
+                    resp.raise_for_status()
+                    content = resp.content  # <-- this is where SSLError can occur
+
+                    cipher = AES.new(key, AES.MODE_CBC, iv=key)
+                    return cipher.decrypt(content)
+                except (SSLError, ConnectionError, requests.RequestException) as e:
+                    print(f"⚠️ Attempt {attempt+1} failed: {e}")
+                    time.sleep(1)
+            print(f"❌ Skipping segment: {segment.uri}")
+            return b""
+
+        print("⏳ Downloading and decrypting segments...")
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            decrypted_segments = list(tqdm(executor.map(download_and_decrypt, playlist.segments), total=len(playlist.segments)))
+
+        decrypted_segments = [seg for seg in decrypted_segments if seg]
+        if not decrypted_segments:
+            print("❌ No segments downloaded. Skipping file.")
+            return False
+
+        ts_file = f"{title}.ts"
+        with open(ts_file, 'wb') as final_file:
+            for segment in decrypted_segments:
+                final_file.write(segment)
+
+        mp4_file = f"{title}"
+        os.rename(ts_file, mp4_file)
+
+        if os.path.exists(mp4_file):
+            if os.path.exists(m3u8_file):
+                os.remove(m3u8_file)
+            if os.path.exists(ts_file):
+                os.remove(ts_file)
+            print("🧹 Temporary files cleaned up.")
+
+        print(f"✅ Done! Video saved as '{mp4_file}'.")
+        return True
+
+    except Exception as e:
+        print(f"❌ Error while processing '{title}': {e}")
+        return False
     """
     Downloads and decrypts .ts video segments from an M3U8 playlist and merges them into a single MP4 file.
     """
