@@ -62,7 +62,7 @@ def merge_videos_with_ffmpeg(output_videos_folder, final_output_file):
     print("🛠️ Merging videos using FFmpeg...")
     cmd =[
     "ffmpeg", "-f", "concat", "-safe", "0", "-i", "videos_to_merge.txt",
-    "-c", "copy", f"../{final_video}"
+    "-c", "copy", f"/content/output_folder/{final_video}"
 ]
     subprocess.run(cmd, check=True, cwd="video_files")
     
@@ -172,53 +172,55 @@ os.makedirs(output_videos_folder,exist_ok=True)
 json_files_lst = os.listdir(json_folder_name)
 print(f"📁 JSON files found: {len(json_files_lst)}")
 
-file_num = 0
+json_start = 0
+json_end = 3
+
 data = None
 
 # Check if JSON files exist
 if len(json_files_lst) > 0:
-    json_file = json_files_lst[file_num]
-    json_file_path = f"./{json_folder_name}/{json_file}"
-    print(f"📄 Loading JSON data from: {json_file_path}")
-    
-    with open(json_file_path, encoding='utf-8') as f:
-        data = json.load(f)
-        data = data[:2]
-        print(f"✅ Loaded {len(data)} entries from {json_file}")
-
-# Process each video entry
-if data:
-    for index, video_data in enumerate(data):
-        print(30*"--")
-        print(f"\n🔄 Processing {index + 1}/{len(data)}")
-
-        video_num = video_data.get('episode')
-        url = video_data.get('video_url')
+    for json_file in json_files_lst[json_start:json_end]:
+            
+        json_file_path = f"./{json_folder_name}/{json_file}"
+        print(f"📄 Loading JSON data from: {json_file_path}")
         
-        if not url:
-            print(f"⚠️ Skipping episode {video_num}: No video URL provided.")
-            continue
-        
-        if "m3u8/?url" not in url:
-            print(f"⚠️ Skipping episode {video_num}: URL format not supported.")
-            continue
+        with open(json_file_path, encoding='utf-8') as f:
+            data = json.load(f)
+            print(f"✅ Loaded {len(data)} entries from {json_file}")
 
-        print(f"🌐 Downloading M3U8 from: {url}")
-        video_flag = download_m3u8(url)
+        # Process each video entry
+        if data:
+            for index, video_data in enumerate(data):
+                print(30*"--")
+                print(f"\n🔄 Processing {index + 1}/{len(data)}")
 
-        if video_flag:
-            output_video_file = f"./{output_videos_folder}/file_{video_num}.mp4"
-            print(f"⬇️ Downloading and decrypting video as '{output_video_file}'...")
-            download_decrypt_merge(output_video_file)
+                video_num = video_data.get('episode')
+                url = video_data.get('video_url')
+                
+                if not url:
+                    print(f"⚠️ Skipping episode {video_num}: No video URL provided.")
+                    continue
+                
+                if "m3u8/?url" not in url:
+                    print(f"⚠️ Skipping episode {video_num}: URL format not supported.")
+                    continue
+
+                print(f"🌐 Downloading M3U8 from: {url}")
+                video_flag = download_m3u8(url)
+
+                if video_flag:
+                    output_video_file = f"./{output_videos_folder}/file_{video_num}.mp4"
+                    print(f"⬇️ Downloading and decrypting video as '{output_video_file}'...")
+                    download_decrypt_merge(output_video_file)
+                else:
+                    print(f"❌ Failed to download M3U8 for episode {video_num}")
+
+            if len(output_videos_folder)>0:
+                print("videos merged started..")
+                clear_output(wait=True)
+                final_video = f"{json_file.split('.')[0]}.mp4"
+                merge_videos_with_ffmpeg(output_videos_folder,final_video)
+                
         else:
-            print(f"❌ Failed to download M3U8 for episode {video_num}")
-
-    if len(output_videos_folder)>0:
-        print("videos merged started..")
-        clear_output(wait=True)
-        final_video = f"{json_file.split('.')[0]}.mp4"
-        merge_videos_with_ffmpeg(output_videos_folder,final_video)
-        
-else:
-    
-    print("🚫 No JSON data to process.")
+            
+            print("🚫 No JSON data to process.")
