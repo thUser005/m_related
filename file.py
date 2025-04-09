@@ -5,7 +5,8 @@ from Crypto.Cipher import AES
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor
 from IPython.display import clear_output
-from requests.exceptions import SSLError, ConnectionError
+from requests.exceptions import SSLError, ConnectionError, RequestException
+
 
 
 # Headers to bypass protection
@@ -70,10 +71,9 @@ def merge_videos_with_ffmpeg(output_videos_folder, final_output_file):
     print(f"✅ Merge complete. Output saved as: {final_output_file}")
 
 
+
+
 def download_decrypt_merge(title, m3u8_file='video.m3u8'):
-    """
-    Downloads and decrypts .ts video segments from an M3U8 playlist and merges them into a single MP4 file.
-    """
     print(f"📥 Processing M3U8: {m3u8_file}")
 
     try:
@@ -82,7 +82,8 @@ def download_decrypt_merge(title, m3u8_file='video.m3u8'):
 
         # Step 2: Get AES-128 Key
         key_uri = playlist.keys[0].uri
-        key_response = requests.get(key_uri, headers=headers)
+        key_response = requests.get(key_uri, headers=headers, timeout=10)
+        key_response.raise_for_status()
         key = key_response.content
 
         # Step 3: Download and Decrypt Segments in Parallel
@@ -90,17 +91,18 @@ def download_decrypt_merge(title, m3u8_file='video.m3u8'):
             for attempt in range(retries):
                 try:
                     segment_url = segment.uri
-                    response = requests.get(segment_url, headers=headers, timeout=10)
+                    response = requests.get(segment_url, headers=headers, timeout=10, stream=True)
                     response.raise_for_status()
+                    encrypted_data = response.content
                     cipher = AES.new(key, AES.MODE_CBC, iv=key)
-                    return cipher.decrypt(response.content)
-                except (SSLError, ConnectionError, requests.RequestException) as e:
-                    print(f"⚠️ Retry {attempt+1} failed for segment: {segment.uri}")
+                    return cipher.decrypt(encrypted_data)
+                except (SSLError, ConnectionError, RequestException) as e:
+                    print(f"⚠️ Retry {attempt+1} failed for segment: {segment.uri} - {type(e).__name__}: {e}")
             print(f"❌ Skipped segment after {retries} failed attempts: {segment.uri}")
             return b""
 
         print("⏳ Downloading and decrypting segments...")
-        with ThreadPoolExecutor(max_workers=20) as executor:
+        with ThreadPoolExecutor(max_workers=50) as executor:
             decrypted_segments = list(tqdm(executor.map(download_and_decrypt, playlist.segments), total=len(playlist.segments)))
 
         # Remove failed (empty) segments
@@ -132,7 +134,7 @@ def download_decrypt_merge(title, m3u8_file='video.m3u8'):
         return True
 
     except Exception as e:
-        print(f"❌ Error while processing '{title}': {e}")
+        print(f"❌ Error while processing '{title}': {type(e).__name__}: {e}")
         return False
 
 def download_m3u8(url, filename="video.m3u8"):
