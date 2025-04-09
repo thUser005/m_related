@@ -1,6 +1,6 @@
 
 import requests,json,subprocess,shutil
-import m3u8,zipfile,os,re
+import m3u8,zipfile,os,re,math
 from Crypto.Cipher import AES
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor
@@ -29,17 +29,20 @@ def unzip_file(zip_path, extract_to):
         zip_ref.extractall(extract_to)
 
 
-def merge_videos_with_ffmpeg(output_videos_folder, final_output_file):
+
+
+def merge_videos_with_ffmpeg(output_videos_folder, final_output_file, max_per_merge=6):
     """
-    Merges all videos named file_{num}.mp4 from a folder into a single video file using FFmpeg.
+    Merges videos named file_{num}.mp4 from a folder into one or more video files using FFmpeg.
 
     Args:
         output_videos_folder (str): Path to the folder containing video segments.
-        final_output_file (str): Name of the final output video (e.g., 'final_video.mp4').
+        final_output_file (str): Base name for the output (e.g., 'final_video.mp4').
+        max_per_merge (int): Maximum number of video files per merged part.
     """
     print(f"📂 Looking for video parts in: {output_videos_folder}")
     
-    # Step 1: Collect and sort video files by number
+    # Step 1: Collect and sort video files
     video_files = [
         f for f in os.listdir(output_videos_folder)
         if re.match(r'file_(\d+)\.mp4$', f)
@@ -49,28 +52,33 @@ def merge_videos_with_ffmpeg(output_videos_folder, final_output_file):
         print("⚠️ No video files found to merge.")
         return
 
-    # Sort files by extracted number
+    # Sort files numerically
     video_files.sort(key=lambda x: int(re.search(r'file_(\d+)\.mp4$', x).group(1)))
-    
     print(f"📑 Sorted video files: {video_files}")
 
-    # Step 2: Create FFmpeg file list
-    list_file_path = os.path.join(output_videos_folder, 'videos_to_merge.txt')
-    with open(list_file_path, 'w') as list_file:
-        for vf in video_files:
-            list_file.write(f"file '{vf}'\n")  # Just the filename, not path like video_files/file_1.mp4
+    # Step 2: Split files into chunks of `max_per_merge`
+    num_parts = math.ceil(len(video_files) / max_per_merge)
+    base_name = os.path.splitext(final_output_file)[0]
 
-    # Step 3: Run FFmpeg command
-    print("🛠️ Merging videos using FFmpeg...")
-    cmd =[
-    "ffmpeg", "-f", "concat", "-safe", "0", "-i", "videos_to_merge.txt",
-    "-c", "copy", f"/content/output_folder/{final_output_file}"
-]
-    subprocess.run(cmd, check=True, cwd="video_files")
-    
-    print(f"✅ Merge complete. Output saved as: {final_output_file}")
+    for i in range(num_parts):
+        part_files = video_files[i * max_per_merge : (i + 1) * max_per_merge]
+        part_name = f"{base_name}_part_{i + 1}.mp4"
 
+        # Create list file for ffmpeg
+        list_file_path = os.path.join(output_videos_folder, f'videos_to_merge_{i + 1}.txt')
+        with open(list_file_path, 'w') as list_file:
+            for vf in part_files:
+                list_file.write(f"file '{vf}'\n")
 
+        # Merge using FFmpeg
+        print(f"🛠️ Merging part {i + 1} into '{part_name}'...")
+        cmd = [
+            "ffmpeg", "-f", "concat", "-safe", "0", "-i", f"videos_to_merge_{i + 1}.txt",
+            "-c", "copy", os.path.join("/content/output_folder", part_name)
+        ]
+        subprocess.run(cmd, check=True, cwd=output_videos_folder)
+
+    print(f"✅ All parts merged successfully into {num_parts} file(s).")
 
 
 def download_decrypt_merge(title, m3u8_file='video.m3u8'):
