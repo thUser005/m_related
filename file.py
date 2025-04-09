@@ -187,7 +187,6 @@ def main(json_start,json_end):
 
     output_videos_folder = "video_files"
 
-    os.makedirs(output_videos_folder,exist_ok=True)
 
     # List files inside json_files folder
     json_files_lst = os.listdir(json_folder_name)
@@ -198,7 +197,8 @@ def main(json_start,json_end):
     # Check if JSON files exist
     if len(json_files_lst) > 0:
         for json_file in json_files_lst[json_start:json_end]:
-                
+            os.makedirs(output_videos_folder,exist_ok=True)
+             
             json_file_path = f"./{json_folder_name}/{json_file}"
             print(f"📄 Loading JSON data from: {json_file_path}")
             
