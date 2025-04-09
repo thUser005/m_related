@@ -5,6 +5,7 @@ from Crypto.Cipher import AES
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor
 from IPython.display import clear_output
+from requests.exceptions import SSLError, ConnectionError
 
 
 # Headers to bypass protection
@@ -72,52 +73,67 @@ def merge_videos_with_ffmpeg(output_videos_folder, final_output_file):
 def download_decrypt_merge(title, m3u8_file='video.m3u8'):
     """
     Downloads and decrypts .ts video segments from an M3U8 playlist and merges them into a single MP4 file.
-
-    Args:
-        title (str or int): The filename (without extension) for the final .mp4 file.
-        m3u8_file (str): Path to the downloaded M3U8 file.
     """
     print(f"📥 Processing M3U8: {m3u8_file}")
 
-    # Step 1: Load the m3u8 file
-    playlist = m3u8.load(m3u8_file)
+    try:
+        # Step 1: Load the m3u8 file
+        playlist = m3u8.load(m3u8_file)
 
-    # Step 2: Get AES-128 Key
-    key_uri = playlist.keys[0].uri
-    key_response = requests.get(key_uri, headers=headers)
-    key = key_response.content
+        # Step 2: Get AES-128 Key
+        key_uri = playlist.keys[0].uri
+        key_response = requests.get(key_uri, headers=headers)
+        key = key_response.content
 
-    # Step 3: Download and Decrypt Segments in Parallel
-    def download_and_decrypt(segment):
-        segment_url = segment.uri
-        segment_data = requests.get(segment_url, headers=headers).content
-        cipher = AES.new(key, AES.MODE_CBC, iv=key)
-        decrypted_data = cipher.decrypt(segment_data)
-        return decrypted_data
+        # Step 3: Download and Decrypt Segments in Parallel
+        def download_and_decrypt(segment, retries=3):
+            for attempt in range(retries):
+                try:
+                    segment_url = segment.uri
+                    response = requests.get(segment_url, headers=headers, timeout=10)
+                    response.raise_for_status()
+                    cipher = AES.new(key, AES.MODE_CBC, iv=key)
+                    return cipher.decrypt(response.content)
+                except (SSLError, ConnectionError, requests.RequestException) as e:
+                    print(f"⚠️ Retry {attempt+1} failed for segment: {segment.uri}")
+            print(f"❌ Skipped segment after {retries} failed attempts: {segment.uri}")
+            return b""
 
-    print("⏳ Downloading and decrypting segments...")
-    with ThreadPoolExecutor(max_workers=50) as executor:
-        decrypted_segments = list(tqdm(executor.map(download_and_decrypt, playlist.segments), total=len(playlist.segments)))
+        print("⏳ Downloading and decrypting segments...")
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            decrypted_segments = list(tqdm(executor.map(download_and_decrypt, playlist.segments), total=len(playlist.segments)))
 
-    # Step 4: Merge all decrypted segments into one file
-    ts_file = f"{title}.ts"
-    with open(ts_file, 'wb') as final_file:
-        for segment in decrypted_segments:
-            final_file.write(segment)
+        # Remove failed (empty) segments
+        decrypted_segments = [seg for seg in decrypted_segments if seg]
 
-    # Step 5: Rename the final file to .mp4
-    mp4_file = f"{title}"
-    os.rename(ts_file, mp4_file)
+        if not decrypted_segments:
+            print("❌ No segments downloaded. Skipping file.")
+            return False
 
-    # Step 6: Cleanup if output file exists
-    if os.path.exists(mp4_file):
-        if os.path.exists(m3u8_file):
-            os.remove(m3u8_file)
-        if os.path.exists(ts_file):
-            os.remove(ts_file)
-        print("🧹 Temporary files cleaned up.")
+        # Step 4: Merge all decrypted segments into one file
+        ts_file = f"{title}.ts"
+        with open(ts_file, 'wb') as final_file:
+            for segment in decrypted_segments:
+                final_file.write(segment)
 
-    print(f"✅ Done! Video saved as '{mp4_file}'.")
+        # Step 5: Rename the final file to .mp4
+        mp4_file = f"{title}"
+        os.rename(ts_file, mp4_file)
+
+        # Step 6: Cleanup
+        if os.path.exists(mp4_file):
+            if os.path.exists(m3u8_file):
+                os.remove(m3u8_file)
+            if os.path.exists(ts_file):
+                os.remove(ts_file)
+            print("🧹 Temporary files cleaned up.")
+
+        print(f"✅ Done! Video saved as '{mp4_file}'.")
+        return True
+
+    except Exception as e:
+        print(f"❌ Error while processing '{title}': {e}")
+        return False
 
 def download_m3u8(url, filename="video.m3u8"):
     """
